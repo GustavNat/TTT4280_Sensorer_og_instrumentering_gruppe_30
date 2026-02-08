@@ -8,7 +8,9 @@ from raspi_import import raspi_import
 #test5: 1kHz
 #test6: 18kHz
 
-sample_period, data = raspi_import('./Measurements/ADC/20Hz.bin')
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'ADC', '20Hz.bin'))
 data = data * 3.3/4096 - 3.3/2  # Convert to voltage and center around 0V
 
 

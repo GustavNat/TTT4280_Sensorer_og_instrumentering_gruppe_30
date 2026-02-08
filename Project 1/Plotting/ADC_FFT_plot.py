@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import os
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Course-provided module (downloaded from Blackboard)
+from raspi_import import raspi_import
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+def rel_db(mag: np.ndarray) -> np.ndarray:
+    """Relative magnitude in dB (0 dB at the strongest non-DC bin)."""
+    eps = 1e-20
+    if mag.size <= 1:
+        return 20 * np.log10(mag + eps)
+
+    # Avoid DC bin dominating if any residual offset remains
+    ref = np.max(mag[1:]) if np.any(mag[1:] > 0) else np.max(mag)
+    ref = max(ref, eps)
+    return 20 * np.log10((mag + eps) / ref)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file", type=str, default="100Hz.bin", help="Binary file from RPi sampler")
+    parser.add_argument("--channels", type=int, default=5, help="Number of channels stored in file")
+    parser.add_argument("--ch", type=int, default=0, help="Channel index to plot (0-based)")
+    parser.add_argument("--pad", type=int, default=20000, help="Zero padding length")
+    parser.add_argument("--max-f", type=float, default=None, help="Max frequency to show [Hz]")
+    parser.add_argument("--no-detrend", action="store_true", help="Do not remove mean (DC)")
+    args = parser.parse_args()
+
+    # raspi_import already converts sample_period from µs to seconds
+    file_path = os.path.join(script_dir, 'Measurements', 'ADC', args.file)
+    Ts, data = raspi_import(file_path, channels=args.channels)
+    fs = 1.0 / Ts
+
+    if not (0 <= args.ch < data.shape[1]):
+        raise ValueError(f"--ch out of range. data has {data.shape[1]} channels.")
+
+    x = data[:, args.ch].astype(np.float64)
+
+    # Remove DC offset (as recommended in lab analysis)
+    if not args.no_detrend:
+        x = x - np.mean(x)
+
+    N = x.size
+    pad_lengths = [0, int(args.pad)]
+
+    windows = [
+        ("Rectangular", np.ones(N)),
+        ("Hamming", np.hamming(N)),
+        ("Hanning", np.hanning(N)),
+        ("Bartlett", np.bartlett(N)),
+    ]
+
+    fig, axes = plt.subplots(
+        nrows=len(windows),
+        ncols=len(pad_lengths),
+        figsize=(12, 10),
+        constrained_layout=True,
+        sharex=True,
+        sharey=True,
+    )
+
+    for i, (wname, w) in enumerate(windows):
+        xw = x * w
+
+        for j, p in enumerate(pad_lengths):
+            xwp = np.pad(xw, (0, p), mode="constant") if p > 0 else xw
+            M = xwp.size
+
+            # Single-sided spectrum (real input)
+            X = np.fft.rfft(xwp)
+            f = np.fft.rfftfreq(M, d=Ts)
+
+            mag = np.abs(X)
+            y_db = rel_db(mag)
+
+            ax = axes[i, j]
+            ax.semilogx(f, y_db)
+            ax.set_ylim(-80, 0)
+            ax.set_xlim(left=10)
+            ax.grid(True, which='both')
+
+            ax.set_title(f"{wname} window, pad={p}")
+            ax.set_ylabel("Rel. magnitude [dB]")
+
+    for ax in axes[-1, :]:
+        ax.set_xlabel("Frequency [Hz]")
+
+    fig.suptitle(
+        f"FFT of {args.file} | channel {args.ch} | N={N} | Ts={Ts:.3e} s | fs={fs:.2f} Hz",
+        y=1.02,
+    )
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
