@@ -28,18 +28,22 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     # parser.add_argument("--file", type=str, default="1kHz.bin", help="Binary file from RPi sampler")
     parser.add_argument("--file", type=str, default="1kHz.bin", help="Binary file from RPi sampler")
-    parser.add_argument("--channels", type=int, default=5, help="Number of channels stored in file")
-    parser.add_argument("--ch", type=int, default=0, help="Channel index to plot (0-based)")
+    parser.add_argument("--channels", type=int, default=3, help="Number of channels stored in file")
+    parser.add_argument("--ch", type=int, default=0, help="Channel 1 to plot (0-based)")
     parser.add_argument("--pad", type=int, default=20000, help="Zero padding length")
     parser.add_argument("--max-f", type=float, default=None, help="Max frequency to show [Hz]")
     parser.add_argument("--no-detrend", action="store_true", help="Do not remove mean (DC)")
+    parser.add_argument("--fs", type=float, default=31250.0, help="Sample rate in Hz (default: 31250)")
     args = parser.parse_args()
 
     # raspi_import already converts sample_period from µs to seconds
     file_path = os.path.join(script_dir, 'Measurements', 'ADC', args.file)
-    Ts, data = raspi_import(file_path, channels=args.channels)
-    fs = 1.0 / Ts
+    _, data = raspi_import(file_path, channels=args.channels)
 
+    # Use specified sample rate
+    fs = args.fs
+    Ts = 1.0 / fs
+    print(f"Using sample rate: fs = {fs} Hz, Ts = {Ts:.6e} s")
 
     if not (0 <= args.ch < data.shape[1]):
         raise ValueError(f"--ch out of range. data has {data.shape[1]} channels.")
@@ -84,9 +88,8 @@ def main() -> None:
             y_db = rel_db(mag)
 
             ax = axes[i, j]
-            ax.semilogx(f, y_db)
-            ax.set_ylim(-80, 0)
-            ax.set_xlim(left=10)
+            ax.plot(f, y_db)
+            ax.set_ylim(-100, 0)
             ax.grid(True, which='both')
 
             ax.set_title(f"{wname} window, pad={p}")
