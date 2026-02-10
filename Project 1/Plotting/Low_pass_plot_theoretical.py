@@ -90,7 +90,8 @@ def main() -> None:
 
     # --- Damped ---
     # Set your series damping resistor here:
-    R_OHM = 10.0  # e.g. 10 ohm
+    # R_OHM = 10.0  # e.g. 10 ohm
+    R_OHM = 22.0  # e.g. 10 ohm
 
     H_mag_d = H_mag_damped(f, R_OHM, L_H, C_OUT_F)
     H_mag_d_dB = 20.0 * np.log10(H_mag_d)
