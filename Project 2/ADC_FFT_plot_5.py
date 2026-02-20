@@ -39,7 +39,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", type=str, default="4kHz.bin", help="Binary file from RPi sampler")
     parser.add_argument("--channels", type=int, default=3, help="Number of channels stored in file")
-    parser.add_argument("--ch", type=int, default=0, help="Channel 1 to plot (0-based)")
+    parser.add_argument("--ch", type=int, default=2, help="Channel 1 to plot (0-based)")
     parser.add_argument("--pad", type=int, default=2000, help="Zero padding length")
     parser.add_argument("--max-f", type=float, default=None, help="Max frequency to show [Hz]")
     parser.add_argument("--no-detrend", action="store_true", help="Do not remove mean (DC)")
@@ -48,7 +48,9 @@ def main() -> None:
     args = parser.parse_args()
 
     # raspi_import already converts sample_period from µs to seconds
-    file_path = os.path.join(script_dir, 'Measurements', 'ADC', args.file)
+    # file_path = os.path.join(script_dir, 'Measurements', 'ADC', args.file)
+    file_path = os.path.join(script_dir, 'Measurements', 'test\\' 'test12.bin')
+    # sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'test\\' 'test7.bin'), channels=3)
     _, data = raspi_import(file_path, channels=args.channels)
 
     # Use specified sample rate
