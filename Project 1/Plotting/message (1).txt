@@ -1,0 +1,48 @@
+2.2.4. Signal-støy-forhold
+Signal-støy-forholdet (SNR) er et mål på kvaliteten til et gitt signal og er definert:
+SNR =
+𝑃signal
+𝑃støy
+8.
+der 𝑃signal er effekten til signalet uten støy, mens 𝑃støy er effekten til støyen.
+Effekten til et signal 𝑥 vil være gitt ved
+𝑃𝑥 =
+1
+𝑁FFT
+∑
+𝑓
+𝑆𝑥
+[𝑓] 9.
+der 𝑆𝑥
+ er PSD-en til 𝑥, mens 𝑁FFT er antall samples man brukte under beregning av 𝑋(𝑓), inkludert
+zero-padding.
+For å finne PSD-en må vi altså finne 𝑆signal og 𝑆støy.
+2.2.4.1. Å finne 𝑃signal og 𝑃støy
+Vi fortalte signalgeneratoren å lage et sinussignal på formen gitt ved likning 3, men signalgeneratoren klarer ikke å gjøre dette perfekt. Generatoren klarer bare i tilnærmet grad å lage riktig
+amplitude og frekvens, og lager signalet 𝑠̂(𝑡) ≈ 𝑠(𝑡) i stedet.
+Utgangssignalet opplever i tillegg en faseforskyvning, samt. har blitt påvirket av støyen i kretsen
+underveis. Derfor er en modell for det realiserte signalet 𝑠̂𝑘
+(𝑡)
+𝑠̂𝑘
+(𝑡) = 𝑠̂(𝑡) + 𝑤(𝑡) = 𝐴̂ ⋅ sin(2𝜋 ̂𝑓 + 𝜑) + 𝑤(𝑡) 10.
+Ved å kurve-tilpasse kan vi med stor nøyaktighet gjenskape det faktiske innsendte signalet, 𝑠̂(𝑡), og
+dersom denne tilpasningen er god nok kan vi finne støyen som
+𝑤(𝑡) = 𝑠̂𝑘
+(𝑡) − 𝑠̂(𝑡) 11.
+der 𝑠̂𝑘
+(𝑡) som sagt er det faktisk “innspilte” signalte, mens 𝑠̂(𝑡) er estimatet på signalet som faktisk
+ble sendt ut av signalgeneratoren.
+Da kan vi finne PSD-en til støysignalet, 𝑆ww(𝑓) og bruke den til å finne effekten 𝑃noise som beskrevet
+tidligere.
+Tilsvarende kan vi gjøre for å finne effekten til totalsignalet, 𝑠̂𝑘
+(𝑡), og dermed 𝑃tot. Vi vet at effekten
+𝑃tot inneholder effekten til både støyen og signalet, så det kan snus om til
+𝑃signal = 𝑃tot − 𝑃støy 12.
+Og da har vi alt for å beregne SNR-en.
+Kode for å gjøre dette ligger i vedlegg  6.3.
+2.2.5. Teoretisk SNR
+Vi er interessert i å finne et øvre estimat for SNR-en til oppsettet, og dette gjør vi ved å anta at vi
+ikke har noen andre former for støy i kretsen, enn kvantiseringsstøy. Vi kjenner allerede den ideelle
+formen på inngangssignalet 𝑠(𝑡), så effekten til denne kan også beregnes. Vi ønsker altså å finne
+SNRmaks =
+𝑃ideelt-signal

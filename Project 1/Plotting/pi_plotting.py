@@ -11,7 +11,7 @@ from raspi_import import raspi_import
 import os
 script_dir = os.path.dirname(os.path.abspath(__file__))
 # sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'ADC', '1kHz.bin'))
-sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'ADC', '1kHz.bin'), channels=3)
+sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'Lab 2', 'test\\' 'test3.bin'), channels=3)
 data = data * 3.3/4096 - 3.3/2  # Convert to voltage and center around 0V
 
 
@@ -19,7 +19,8 @@ the_data0 = data[:,0]-0.2
 the_data1 = data[:,1]
 the_data2 = data[:,2]+0.2
 
-time = np.linspace(0, 1, len(the_data0))
+# Time in ms, starting at 0 corresponds to 0.2s of actual data
+time = (np.linspace(0, 1, len(the_data0)) - 0.2) * 1000  # Convert to ms with offset
 
 
 
@@ -45,16 +46,17 @@ num_samples = 10000
 
 
 
-plt.plot(time, the_data0, 'o')
-plt.plot(time, the_data1)
-plt.plot(time, the_data2)
+plt.plot(time, the_data0, label=r"$S_1$")
+plt.plot(time, the_data1, label=r"$S_2$")
+plt.plot(time, the_data2, label=r"$S_3$")
 
-plt.xlabel("Time (s)")
+plt.xlabel("Time (ms)")
 plt.ylabel("Voltage (V)")
 plt.title("Measured sine wave")
-# plt.xlim(sample_period, num_samples*sample_period/50)
+plt.xlim(0, None)
 plt.ylim(-2, 2)
 plt.grid()
+plt.legend()
 plt.show()
 
 

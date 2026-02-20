@@ -17,6 +17,23 @@ import matplotlib.pyplot as plt
 SCRIPT_DIR = Path(__file__).resolve().parent
 CSV_FILE = SCRIPT_DIR / "Measurements" / "Low-pass_filter" / "Low-pass_filter_10_ohm_resistor.csv"
 
+# --- Component values for theoretical model ---
+L_H = 100e-3          # 100 mH
+C2_F = 470e-6         # 470 uF
+C3_F = 100e-9         # 100 nF
+C_OUT_F = C2_F + C3_F
+R_OHM = 10          # Damping resistor (ohms)
+
+
+def H_mag_damped(f_hz: np.ndarray, R_ohm: float, L_h: float, C_out_f: float) -> np.ndarray:
+    """Theoretical transfer function magnitude for damped 2nd-order low-pass."""
+    omega = 2.0 * np.pi * f_hz
+    real = 1.0 - (omega**2) * L_h * C_out_f
+    imag = omega * R_ohm * C_out_f
+    denom = np.sqrt(real**2 + imag**2)
+    denom = np.maximum(denom, 1e-18)
+    return 1.0 / denom
+
 
 def main() -> None:
     # Read from line 2 (skip line 1)
@@ -44,25 +61,64 @@ def main() -> None:
     # Transfer function magnitude in dB (Ch2/Ch1)
     H_mag_dB = ch2_mag_dB - ch1_mag_dB
 
-    # --- Plot Bode ---
-    fig, (ax_mag, ax_phase) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+    # Find -3dB cutoff frequency (where amplitude = -3 dB)
+    cutoff_level = -3.0
 
-    ax_mag.semilogx(f, H_mag_dB, label=r"$|H(f)|$ (Ch2/Ch1) [dB]")
-    # Optional: show the raw channel magnitudes too (comment out if you want a cleaner plot)
-    ax_mag.semilogx(f, ch1_mag_dB, "--", linewidth=1.0, label="Ch1 magnitude [dB]")
-    ax_mag.semilogx(f, ch2_mag_dB, "--", linewidth=1.0, label="Ch2 magnitude [dB]")
+    # Find where magnitude crosses -3dB level
+    f_cutoff = None
+    for i in range(1, len(H_mag_dB)):
+        if H_mag_dB[i-1] >= cutoff_level and H_mag_dB[i] < cutoff_level:
+            # Linear interpolation between the two points
+            slope = (f[i] - f[i-1]) / (H_mag_dB[i] - H_mag_dB[i-1])
+            f_cutoff = f[i-1] + slope * (cutoff_level - H_mag_dB[i-1])
+            break
 
-    ax_mag.set_ylabel("Magnitude (dB)")
-    ax_mag.grid(True, which="both")
-    ax_mag.legend()
+    if f_cutoff is None:
+        f_cutoff = f[-1]  # Cutoff beyond measured range
 
-    ax_phase.semilogx(f, phase_deg, label="Phase [deg]")
-    ax_phase.set_xlabel("Frequency (Hz)")
-    ax_phase.set_ylabel("Phase (deg)")
-    ax_phase.grid(True, which="both")
-    ax_phase.legend()
+    print(f"Measured cutoff frequency (-3dB): {f_cutoff:.2f} Hz")
 
-    fig.suptitle("Measured Bode plot – Low-pass filter")
+    # --- Compute theoretical response ---
+    f_theory = np.logspace(np.log10(f.min()), np.log10(f.max()), 500)
+    H_theory = H_mag_damped(f_theory, R_OHM, L_H, C_OUT_F)
+    H_theory_dB = 20.0 * np.log10(H_theory)
+
+    # Find theoretical -3dB cutoff frequency
+    f_cutoff_theory = None
+    for i in range(1, len(H_theory_dB)):
+        if H_theory_dB[i-1] >= cutoff_level and H_theory_dB[i] < cutoff_level:
+            slope = (f_theory[i] - f_theory[i-1]) / (H_theory_dB[i] - H_theory_dB[i-1])
+            f_cutoff_theory = f_theory[i-1] + slope * (cutoff_level - H_theory_dB[i-1])
+            break
+
+    if f_cutoff_theory is None:
+        f_cutoff_theory = f_theory[-1]
+
+    print(f"Theoretical cutoff frequency (-3dB): {f_cutoff_theory:.2f} Hz")
+
+    # --- Plot amplitude response ---
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    ax.semilogx(f, H_mag_dB, label=r"Measured $|H(j2\pi f)|$")
+    ax.semilogx(f_theory, H_theory_dB, '--', linewidth=1.5, label=r"Theoretical $|H(j2\pi f)|$")
+
+    # Mark measured cutoff frequency
+    ax.axvline(f_cutoff, color='r', linestyle=':', linewidth=1.5, label=f"Measured $f_c$ = {f_cutoff:.1f} Hz")
+    ax.plot(f_cutoff, cutoff_level, 'ro', markersize=8)
+
+    # Mark theoretical cutoff frequency
+    ax.axvline(f_cutoff_theory, color='g', linestyle=':', linewidth=1.5, label=f"Theoretical $f_c$ = {f_cutoff_theory:.1f} Hz")
+    ax.plot(f_cutoff_theory, cutoff_level, 'go', markersize=8)
+
+    # Mark -3dB level
+    ax.axhline(cutoff_level, color='gray', linestyle=':', linewidth=1.0, alpha=0.5)
+
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude (dB)")
+    ax.grid(True, which="both")
+    ax.legend()
+
+    fig.suptitle("Amplitude response – Low-pass filter (Measured vs Theoretical)")
     fig.tight_layout()
     plt.show()
 

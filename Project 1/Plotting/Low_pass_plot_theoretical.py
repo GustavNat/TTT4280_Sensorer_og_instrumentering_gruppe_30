@@ -90,45 +90,37 @@ def main() -> None:
 
     # --- Damped ---
     # Set your series damping resistor here:
-    # R_OHM = 10.0  # e.g. 10 ohm
-    R_OHM = 22.0  # e.g. 10 ohm
+    R_OHM = 10.0  # 10 ohm
 
     H_mag_d = H_mag_damped(f, R_OHM, L_H, C_OUT_F)
     H_mag_d_dB = 20.0 * np.log10(H_mag_d)
     H_mag_d_dB = np.clip(H_mag_d_dB, -200.0, MAX_DB)
 
-    # Optional: frequency for peak magnitude (only if R is small enough)
-    # omega_r = sqrt(omega0^2 - (R/L)^2 / 2)
-    omega0 = 1.0 / np.sqrt(L_H * C_OUT_F)
-    inside = omega0**2 - 0.5 * (R_OHM / L_H) ** 2
-    f_r = np.sqrt(inside) / (2.0 * np.pi) if inside > 0 else None
+    # Find -3dB cutoff frequency
+    cutoff_level = -3.0
+    f_cutoff = None
+    for i in range(1, len(H_mag_d_dB)):
+        if H_mag_d_dB[i-1] >= cutoff_level and H_mag_d_dB[i] < cutoff_level:
+            # Linear interpolation
+            slope = (f[i] - f[i-1]) / (H_mag_d_dB[i] - H_mag_d_dB[i-1])
+            f_cutoff = f[i-1] + slope * (cutoff_level - H_mag_d_dB[i-1])
+            break
+
+    if f_cutoff is not None:
+        print(f"Theoretical cutoff frequency (-3dB): {f_cutoff:.2f} Hz")
 
     fig_d, ax_d = plt.subplots(figsize=(9, 4.8))
     ax_d.semilogx(
         f, H_mag_d_dB,
-        label=r"$20\log_{10}\!\left(\frac{1}{\sqrt{(1-\omega^2LC_{out})^2+(\omega RC_{out})^2}}\right)$"
+        label=r"$|H(j2\pi f)|$"
     )
 
-    # ax_d.axvline(
-    #     f0,
-    #     color="orange",
-    #     linestyle="-",
-    #     linewidth=2.0,
-    #     alpha=0.9,
-    #     zorder=5,
-    #     label=rf"$f_0 \approx {f0:.1f}\ \mathrm{{Hz}}$",
-    # )
-
-    # if f_r is not None:
-    #     ax_d.axvline(
-    #         f_r,
-    #         color="black",
-    #         linestyle="--",
-    #         linewidth=1.5,
-    #         alpha=0.9,
-    #         zorder=5,
-    #         label=rf"$f_r \approx {f_r:.1f}\ \mathrm{{Hz}}$",
-    #     )
+    # Mark cutoff frequency
+    if f_cutoff is not None:
+        ax_d.axvline(f_cutoff, color='r', linestyle=':', linewidth=1.5,
+                     label=f"$f_c$ = {f_cutoff:.1f} Hz")
+        ax_d.axhline(cutoff_level, color='r', linestyle=':', linewidth=1.0, alpha=0.5)
+        ax_d.plot(f_cutoff, cutoff_level, 'ro', markersize=8)
 
     ax_d.set_xlabel("Frequency (Hz)")
     ax_d.set_ylabel("Magnitude (dB)")
