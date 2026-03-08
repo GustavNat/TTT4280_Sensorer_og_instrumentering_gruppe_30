@@ -24,7 +24,7 @@ from scipy.signal import windows
 # -------------------------------------------------------------------
 # Konfigurasjon
 # -------------------------------------------------------------------
-MEASUREMENTS_DIR = "./Meausrements"
+MEASUREMENTS_DIR = os.path.join(os.path.dirname(__file__), "Measurements")
 VIDEO_FILES = [
     # "Data_1_57bpm.mp4",
     # "Data_2_58bpm.mp4",
