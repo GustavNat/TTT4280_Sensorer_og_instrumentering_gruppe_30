@@ -20,13 +20,14 @@ from raspi_import import raspi_import
 # ══════════════════════════════════════════════════════════════════════════════
 # PARAMETERS  –– adjust these before running
 # ══════════════════════════════════════════════════════════════════════════════
-d = 0.03          # microphone spacing [m]  ← set to your actual spacing
+d = 0.05          # microphone spacing [m]  ← set to your actual spacing
 c = 343.0         # speed of sound in air [m/s]
 
 # ── Data file ─────────────────────────────────────────────────────────────────
-# Path matches pi_plotting.py exactly; edit filename to your measurement.
+
 filepath = os.path.join(
-    script_dir, "Measurements", "Lab 2", "test\\", "test3.bin"
+    # script_dir, "Measurements", "Lab 2", "test\\", "test3.bin"
+    script_dir, "Measurements", "test\\", "test12.bin"
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -47,24 +48,6 @@ ch2 = data[:, 2]
 # ══════════════════════════════════════════════════════════════════════════════
 
 def compute_corr(x, y):
-    """
-    Cross-correlation  r_xy(m) = Σ_n  x(n) · y(n + m).
-
-    Uses numpy.correlate(y0, x0, 'full') which evaluates
-        Σ_n  y0[n] · x0[n − (k − (N−1))]
-    so that index k corresponds to lag  m = k − (N−1).
-
-    DC offset is removed from both signals before correlating.
-
-    Parameters
-    ----------
-    x, y : array-like, same length N
-
-    Returns
-    -------
-    lags : ndarray, shape (2N−1,)  –– integer lags from −(N−1) to +(N−1)
-    r    : ndarray, shape (2N−1,)  –– correlation values
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if x.shape != y.shape:
@@ -181,51 +164,6 @@ corr_cfg = [
 for ax, (lags, r, lag_star, title, color) in zip(axes, corr_cfg):
     plot_corr(ax, lags, r, lag_star, title, color=color, n_max_val=n_max)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FIGURE 2 – Autocorrelation r_00
-# ══════════════════════════════════════════════════════════════════════════════
-fig2, ax2 = plt.subplots(figsize=(11, 4), constrained_layout=True)
-fig2.suptitle("Autocorrelation r₀₀ (channel 0)", fontsize=13)
 
-plot_corr(ax2, lags_00, r_00, auto_peak, "r₀₀ : ch0 autocorrelation",
-          color="mediumpurple")
-ax2.axvline(
-    0, color="limegreen", linestyle=":", linewidth=1.6,
-    label=f"lag = 0 reference  "
-          f"({'PASS – peak here' if auto_ok else 'FAIL – peak elsewhere'})"
-)
-ax2.legend(fontsize=8, loc="upper right")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# FIGURE 3 – Delay summary bar chart (samples and seconds)
-# ══════════════════════════════════════════════════════════════════════════════
-pair_names  = [name for name, *_ in cross_pairs]
-peak_lags   = [peak_lag(lags, r) for _, lags, r in cross_pairs]
-peak_times  = [lag / f_s for lag in peak_lags]
-
-fig3, (ax3a, ax3b) = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
-fig3.suptitle("Estimated time delays between microphone pairs", fontsize=13)
-
-colors_bar = ["steelblue", "seagreen", "darkorange"]
-
-ax3a.bar(pair_names, peak_lags, color=colors_bar, edgecolor="k", linewidth=0.6)
-ax3a.axhline( n_max, color="red",  linestyle="--", linewidth=1.1, label=f"+n_max = {n_max}")
-ax3a.axhline(-n_max, color="red",  linestyle="--", linewidth=1.1, label=f"−n_max = {-n_max}")
-ax3a.set_ylabel("Peak lag (samples)")
-ax3a.set_title("Peak lag in samples")
-ax3a.legend(fontsize=8)
-ax3a.grid(axis="y", linewidth=0.4)
-
-t_max = n_max / f_s
-ax3b.bar(pair_names, [t * 1e6 for t in peak_times], color=colors_bar,
-         edgecolor="k", linewidth=0.6)
-ax3b.axhline( t_max * 1e6, color="red", linestyle="--", linewidth=1.1,
-              label=f"+d/c = {t_max*1e6:.2f} µs")
-ax3b.axhline(-t_max * 1e6, color="red", linestyle="--", linewidth=1.1,
-              label=f"−d/c = {-t_max*1e6:.2f} µs")
-ax3b.set_ylabel("Peak delay (µs)")
-ax3b.set_title("Peak delay in microseconds")
-ax3b.legend(fontsize=8)
-ax3b.grid(axis="y", linewidth=0.4)
 
 plt.show()

@@ -12,13 +12,13 @@ import os
 script_dir = os.path.dirname(os.path.abspath(__file__))
 # sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'ADC', '1kHz.bin'))
 # sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'Lab 2', 'test\\' 'test3.bin'), channels=3)
-sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'test\\' 'test12.bin'), channels=3)
+sample_period, data = raspi_import(os.path.join(script_dir, 'Measurements', 'test\\' 'test14.bin'), channels=3)
 data = data * 3.3/4096 - 3.3/2  # Convert to voltage and center around 0V
 
 
-the_data0 = data[:,0]-0.2
-the_data1 = data[:,1]
-the_data2 = data[:,2]+0.2
+the_data0 = data[:,0]- data[:,0].mean()
+the_data1 = data[:,1] - data[:,1].mean()
+the_data2 = data[:,2] - data[:,2].mean()
 
 # Time in ms, starting at 0 corresponds to 0.2s of actual data
 time = (np.linspace(0, 1, len(the_data0)) - 0.2) * 1000  # Convert to ms with offset
