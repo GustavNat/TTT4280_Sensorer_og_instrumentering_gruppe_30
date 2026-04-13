@@ -11,12 +11,12 @@ VIDEO_FILES = [
     "56.mp4",
     "57_2.mp4",
     "57.mp4",
-    # "58.mp4",
+    "58.mp4",
     # "cold_finger_59.mp4",
-    "fore_head_58.mp4",
+    # "fore_head_58.mp4",
     # "Higher_102.mp4",
     # "nothing.mp4"
-    "fore_head_2.mp4"
+    # "fore_head_2.mp4"
 ]
 
 VIDEO_FILES = [os.path.join(Measurement_folder, file) for file in VIDEO_FILES]
