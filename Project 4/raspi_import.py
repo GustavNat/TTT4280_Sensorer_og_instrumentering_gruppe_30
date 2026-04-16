@@ -2,11 +2,12 @@ import numpy as np
 import sys
 
 
-def raspi_import(path, channels=5):
+def raspi_import(path, channels=3):
     """
     Import data produced using adc_sampler.c.
 
-   
+    Returns sample period and a (`samples`, `channels`) `float64` array of
+    sampled data from all `channels` channels.
 
     Example (requires a recording named `foo.bin`):
     ```
@@ -30,7 +31,7 @@ def raspi_import(path, channels=5):
 
     # sample period is given in microseconds, so this changes units to seconds
     sample_period *= 1e-6
-    print(1/sample_period)
+    # print(1/sample_period)
     return sample_period, data
 
 

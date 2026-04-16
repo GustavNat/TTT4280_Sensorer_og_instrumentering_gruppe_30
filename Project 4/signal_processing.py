@@ -1,185 +1,159 @@
-from __future__ import annotations
-
 import numpy as np
-
-try:
-    from scipy.signal import find_peaks
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
+import matplotlib.pyplot as plt
+from raspi_import import raspi_import
 
 
-SPEED_OF_LIGHT = 299_792_458.0
+f_0 = 24.13*10**9 #LO of radar
+c = 3*10**8
+
+# Slicing data (cutting unecessary data)
 
 
-def trim_signals(
-    i_data: np.ndarray,
-    q_data: np.ndarray,
-    start: int,
-    end: int | None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Trim both channels to the selected sample range."""
-    return i_data[start:end], q_data[start:end]
+time_cut_each_data = [
+                    [4.5,   7],     # 0.36m/s
+                    [1.2,   3.2],   # 1.18m/s
+                    [1,     4.5]]   #-0.87m/s
 
 
-def remove_dc(signal: np.ndarray) -> np.ndarray:
-    """Remove DC offset by subtracting the mean value."""
-    return signal - np.mean(signal)
+def the_function(file, time_cut_index):
+
+    sample_period, data = raspi_import("Data/"+file)
+    t = np.arange(data.shape[0]) * sample_period
+    max_freq = int(2.8 * 10**3)
+
+    sample_rate = int(1/sample_period)
+    start_time =    time_cut_each_data[time_cut_index][0]
+    end_time =      time_cut_each_data[time_cut_index][1]
+    start_time_samples = int(start_time*sample_rate)
+    end_time_sapmles = int(end_time*sample_rate)
+    t = t[start_time_samples:end_time_sapmles]
 
 
-def get_window(window_name: str, n: int, kaiser_beta: float = 8.0) -> np.ndarray:
-    """Create the selected window."""
-    if window_name == "rectangular":
-        return np.ones(n)
-    if window_name == "hann":
-        return np.hanning(n)
-    if window_name == "hamming":
-        return np.hamming(n)
-    if window_name == "kaiser":
-        return np.kaiser(n, kaiser_beta)
+    #Defining IF_I, IF_Q data (and scale them)
 
-    raise ValueError(f"Unsupported window: {window_name}")
+    IF_I = data[start_time_samples:end_time_sapmles, 0]
+    IF_Q = data[start_time_samples:end_time_sapmles, 1] 
 
+    IF_I = IF_I - np.mean(IF_I)
+    IF_Q = IF_Q - np.mean(IF_Q)
 
-def build_complex_signal(i_data: np.ndarray, q_data: np.ndarray) -> np.ndarray:
-    """Build complex I/Q signal z[n] = I[n] + j Q[n]."""
-    return i_data + 1j * q_data
+    AI = np.sqrt(np.mean(IF_I**2))
+    AQ = np.sqrt(np.mean(IF_Q**2))
+    IF_Q = IF_Q * AI/AQ
+
+    window = np.hanning(len(t))
+    IF_I = IF_I*window
+    IF_Q = IF_Q*window
 
 
-def compute_fft(
-    signal: np.ndarray,
-    fs: float,
-    window: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compute fftshifted FFT and matching frequency axis.
-    """
-    if len(signal) != len(window):
-        raise ValueError("Signal and window must have the same length.")
+    # Performing FFT
 
-    signal_windowed = signal * window
-    n = len(signal_windowed)
+    x = IF_I + 1j*IF_Q
+    X = np.fft.fft(x)
+    freq = np.fft.fftfreq(len(x), sample_period)
 
-    spectrum = np.fft.fftshift(np.fft.fft(signal_windowed))
-    freq_axis = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs))
-
-    return freq_axis, spectrum
+    #chaning [0,+f, -f] -> [-f,0,f]
+    X = np.fft.fftshift(X)
+    freq = np.fft.fftshift(freq)
 
 
-def magnitude_db(spectrum: np.ndarray, eps: float = 1e-12) -> np.ndarray:
-    """Convert magnitude to dB."""
-    return 20.0 * np.log10(np.abs(spectrum) + eps)
+    #Cutting off f>max_freq
+    mask = np.abs(freq) <= max_freq
+    freq = freq[mask]
+    amp = np.abs(X[mask])
 
 
-def build_search_mask(
-    freq_axis: np.ndarray,
-    dc_exclusion_hz: float,
-    min_search_hz: float | None,
-    max_search_hz: float | None,
-) -> np.ndarray:
-    """
-    Build mask for which FFT bins are allowed in peak search.
-    """
-    abs_freq = np.abs(freq_axis)
-    mask = abs_freq >= dc_exclusion_hz
+    #Time domain:
+    # plt.plot(t, IF_I)
+    # plt.plot(t,IF_Q)
+    # plt.show()
 
-    if min_search_hz is not None:
-        mask &= abs_freq >= min_search_hz
+    #Finding speed
+    k_max = np.argmax(amp)
+    f_peak = freq[k_max]
+    v_r = (f_peak*c)/(2*f_0)
+    print("estimated speed: ",v_r,"m/s")
 
-    if max_search_hz is not None:
-        mask &= abs_freq <= max_search_hz
+    #Calculating SNR
+    eps = 1e-12
+    amp_dB = 20*np.log10((amp + eps) / (np.max(amp) + eps))
 
-    return mask
+    SNR_threshold = 50
 
+    i1 = max(0, k_max - SNR_threshold)
+    i2 = min(len(amp), k_max + SNR_threshold + 1)
 
-def parabolic_peak_interpolation(
-    x: np.ndarray,
-    y: np.ndarray,
-    peak_index: int,
-) -> tuple[float, float]:
-    """
-    Improve peak estimate using simple parabolic interpolation.
-
-    x: frequency axis
-    y: linear magnitude values
-    """
-    if peak_index <= 0 or peak_index >= len(y) - 1:
-        return float(x[peak_index]), float(y[peak_index])
-
-    y_m1 = y[peak_index - 1]
-    y_0 = y[peak_index]
-    y_p1 = y[peak_index + 1]
-
-    denominator = y_m1 - 2.0 * y_0 + y_p1
-    if np.isclose(denominator, 0.0):
-        return float(x[peak_index]), float(y[peak_index])
-
-    delta = 0.5 * (y_m1 - y_p1) / denominator
-    dx = x[1] - x[0]
-
-    x_interp = x[peak_index] + delta * dx
-    y_interp = y_0 - 0.25 * (y_m1 - y_p1) * delta
-
-    return float(x_interp), float(y_interp)
+    E_signal = np.sum(amp[i1:i2]**2)
+    E_noise  = np.sum(amp[:i1]**2) + np.sum(amp[i2:]**2)
+    SNR_dB = 10*np.log10(E_signal / E_noise)
 
 
-def find_doppler_peak(
-    freq_axis: np.ndarray,
-    spectrum: np.ndarray,
-    dc_exclusion_hz: float,
-    min_search_hz: float | None,
-    max_search_hz: float | None,
-    peak_prominence_db: float,
-) -> tuple[float, float, str]:
-    """
-    Find the Doppler peak in the complex spectrum.
+    k_left = k_max
+    k_right = k_max
 
-    Returns:
-    - peak frequency [Hz]
-    - peak magnitude [linear]
-    - method description
-    """
-    mask = build_search_mask(
-        freq_axis=freq_axis,
-        dc_exclusion_hz=dc_exclusion_hz,
-        min_search_hz=min_search_hz,
-        max_search_hz=max_search_hz,
-    )
+    while amp_dB[k_left] > -3:
+        k_left = k_left-1
 
-    if not np.any(mask):
-        raise ValueError("No FFT bins left after applying search mask.")
+    while amp_dB[k_left] > -3:
+        k_right = k_right+1
+    doppler_shift_resolution = freq[k_right]-freq[k_left]
 
-    freq_valid = freq_axis[mask]
-    mag_valid = np.abs(spectrum[mask])
-    mag_valid_db = 20.0 * np.log10(mag_valid + 1e-12)
+    print("doppleroppløsing: ", doppler_shift_resolution, "Hz")
 
-    method = "argmax"
+    #Frequency domain:
+    # plt.plot(freq, amp_dB)
+    # plt.xlabel("Frequency [Hz]")
+    # plt.ylabel("Magnitude")
+    # plt.show()
 
-    if SCIPY_AVAILABLE and len(mag_valid_db) >= 3:
-        peaks, _ = find_peaks(mag_valid_db, prominence=peak_prominence_db)
-        if len(peaks) > 0:
-            peak_index = int(peaks[np.argmax(mag_valid[peaks])])
-            method = "scipy.find_peaks"
-        else:
-            peak_index = int(np.argmax(mag_valid))
-    else:
-        peak_index = int(np.argmax(mag_valid))
-
-    peak_freq, peak_mag = parabolic_peak_interpolation(
-        freq_valid,
-        mag_valid,
-        peak_index,
-    )
-
-    method += " + parabolic interpolation"
-    return peak_freq, peak_mag, method
+    return v_r
 
 
-def doppler_to_velocity(f_d: float, f0: float) -> float:
-    """
-    Monostatic CW Doppler radar:
-        f_D = 2 * v_r / lambda
-        v_r = f_D * lambda / 2
-    """
-    wavelength = SPEED_OF_LIGHT / f0
-    return f_d * wavelength / 2.0
+file_118_1 = "118ms_1.bin"
+file_118_2 = "118ms_2.bin"
+file_118_3 = "118ms_3.bin"
+file_118_4 = "118ms_4.bin"
+
+v_r_118 = []
+v_r_118.append(the_function(file_118_1, 1))
+v_r_118.append(the_function(file_118_2, 1))
+v_r_118.append(the_function(file_118_3, 1))
+v_r_118.append(the_function(file_118_4, 1))
+v_r_118 = np.array(v_r_118)
+
+sigma_118 = np.sqrt(1/len(v_r_118)*sum(v_r_118-1.18)**2)
+
+
+
+file_036_1 = "036ms_1.bin"
+file_036_2 = "036ms_2.bin"
+file_036_3 = "036ms_3.bin"
+file_036_4 = "036ms_4.bin"
+
+v_r_036 = []
+v_r_036.append(the_function(file_036_1, 1))
+v_r_036.append(the_function(file_036_2, 1))
+v_r_036.append(the_function(file_036_3, 1))
+v_r_036.append(the_function(file_036_4, 1))
+v_r_036 = np.array(v_r_036)
+
+sigma_036 = np.sqrt(1/len(v_r_036)*sum(v_r_036-0.36)**2)
+
+
+file_neg087_1 = "neg087ms_1.bin"
+file_neg087_2 = "neg087ms_2.bin"
+file_neg087_3 = "neg087ms_3.bin"
+file_neg087_4 = "neg087ms_4.bin"
+
+v_r_neg087 = []
+v_r_neg087.append(the_function(file_neg087_1, 1))
+v_r_neg087.append(the_function(file_neg087_2, 1))
+v_r_neg087.append(the_function(file_neg087_3, 1))
+v_r_neg087.append(the_function(file_neg087_4, 1))
+v_r_neg087 = np.array(v_r_neg087)
+
+sigma_neg087 = np.sqrt(1/len(v_r_neg087)*sum(v_r_neg087-(-0.87))**2)
+
+print(sigma_036)
+print(sigma_118)
+print(sigma_neg087)
